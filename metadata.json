@@ -1,0 +1,5 @@
+{
+  "name": "AK Racing Physics Engine",
+  "description": "A high-fidelity motorcycle physics simulation featuring realistic steering, leaning, and ground traction mechanics, tuned via a Gemini-powered physics assistant.",
+  "requestFramePermissions": []
+}
