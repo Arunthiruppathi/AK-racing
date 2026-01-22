@@ -53,7 +53,8 @@ export class MotorcycleController {
     this.heading += turnRate * turnVelocity * dt;
 
     // Lean logic: Proportional to speed
-    const targetLean = effectiveSteer * normalizedSpeed * this.config.leanFactor * 1.5;
+    // FIX: Using rollFactor as leanFactor is not defined in PhysicsConfig interface
+    const targetLean = effectiveSteer * normalizedSpeed * this.config.rollFactor * 1.5;
     const effectiveDamping = this.config.angularDamping * this.stabilityModifier;
     this.leanAngle += (targetLean - this.leanAngle) * effectiveDamping * dt;
 
@@ -73,10 +74,13 @@ export class MotorcycleController {
     this.position.y = 0.5 + this.verticalOffset;
   }
 
-  public getTelemetry(inputs: { throttle: number, brake: number, steer: number }, extra: { score: number, lap: number, position: number }): TelemetryData {
+  // Updated getTelemetry signature to include level in extra parameters
+  public getTelemetry(inputs: { throttle: number, brake: number, steer: number }, extra: { score: number, lap: number, position: number, level: number }): TelemetryData {
     return {
       speed: Math.round(this.velocity * 3.6),
-      leanAngle: Math.round(this.leanAngle * 57.29),
+      // Mapping leanAngle to bodyRoll and adding bodyPitch to satisfy TelemetryData type requirements
+      bodyRoll: Math.round(this.leanAngle * 57.29),
+      bodyPitch: 0,
       rpm: Math.min(9000, 2000 + (this.velocity * 120) % 7000),
       gear: Math.floor(this.velocity / 15) + 1,
       throttle: inputs.throttle,
@@ -84,7 +88,8 @@ export class MotorcycleController {
       steering: inputs.steer,
       score: extra.score,
       lap: extra.lap,
-      position: extra.position
+      position: extra.position,
+      level: extra.level
     };
   }
 }

@@ -4,16 +4,20 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AK Racing - Advanced Physics Engine</title>
+  <title>AK Racing - Pro Daylight Edition</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
-    body { margin: 0; overflow: hidden; background: #0a0a0a; color: white; font-family: 'Inter', sans-serif; }
+    body { margin: 0; overflow: hidden; background: #f0f4f8; color: #1a202c; font-family: 'Inter', sans-serif; }
     canvas { display: block; }
-    .glass {
-      background: rgba(15, 15, 15, 0.7);
-      backdrop-filter: blur(10px);
-      border: 1px solid rgba(255, 255, 255, 0.1);
+    .glass-light {
+      background: rgba(255, 255, 255, 0.8);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.5);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.05);
+    }
+    .neon-text-blue {
+      text-shadow: 0 0 10px rgba(66, 153, 225, 0.5);
     }
   </style>
 <script type="importmap">

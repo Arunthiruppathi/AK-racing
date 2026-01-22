@@ -1,11 +1,8 @@
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
-import { MotorcycleController } from '../physics/MotorcycleController.ts';
+import { CarController } from '../physics/CarController.ts';
 import { PhysicsConfig, TelemetryData, TaskType } from '../types.ts';
-
-// Extended Task Types
-const CUSTOM_TASK_AGILE = "TECHNICAL_U_TURN";
 
 interface SimulationProps {
   config: PhysicsConfig;
@@ -14,7 +11,9 @@ interface SimulationProps {
 
 const Simulation: React.FC<SimulationProps> = ({ config, onTelemetry }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const controllerRef = useRef<MotorcycleController>(new MotorcycleController(config));
+  const controllerRef = useRef<CarController>(new CarController(config));
+  const levelRef = useRef(1);
+  const scoreRef = useRef(0);
   
   useEffect(() => {
     controllerRef.current.config = config;
@@ -23,124 +22,125 @@ const Simulation: React.FC<SimulationProps> = ({ config, onTelemetry }) => {
   useEffect(() => {
     if (!containerRef.current) return;
 
+    // --- Scene Setup ---
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x010103);
-    scene.fog = new THREE.FogExp2(0x010103, 0.012);
+    scene.background = new THREE.Color(0xf0f7ff);
+    scene.fog = new THREE.Fog(0xf0f7ff, 100, 1200);
 
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2500);
-    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 5000);
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setPixelRatio(window.devicePixelRatio);
     renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     containerRef.current.appendChild(renderer.domElement);
 
-    // --- Lights ---
-    scene.add(new THREE.AmbientLight(0x202040, 0.8));
-    const pointLight = new THREE.PointLight(0xff00ff, 20, 100);
-    scene.add(pointLight);
+    // --- High Contrast Daylight Lighting ---
+    const sun = new THREE.DirectionalLight(0xffffff, 1.4);
+    sun.position.set(200, 400, 100);
+    sun.castShadow = true;
+    sun.shadow.camera.left = -500;
+    sun.shadow.camera.right = 500;
+    sun.shadow.camera.top = 500;
+    sun.shadow.camera.bottom = -500;
+    sun.shadow.mapSize.width = 4096;
+    sun.shadow.mapSize.height = 4096;
+    scene.add(sun);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.5));
 
-    // --- Track ---
+    // --- Straight Road Layout ---
     const curve = new THREE.CatmullRomCurve3([
       new THREE.Vector3(0, 0, 0),
-      new THREE.Vector3(150, 0, 100),
-      new THREE.Vector3(300, 0, 0),
-      new THREE.Vector3(400, 0, -200),
-      new THREE.Vector3(250, 0, -450),
-      new THREE.Vector3(0, 0, -400),
-      new THREE.Vector3(-250, 0, -450),
-      new THREE.Vector3(-450, 0, -200),
-      new THREE.Vector3(-300, 0, 100),
-      new THREE.Vector3(-150, 0, 150),
-    ], true);
+      new THREE.Vector3(0, 0, -800),    // Long Straight 1
+      new THREE.Vector3(50, 0, -850),   // Corner 1
+      new THREE.Vector3(450, 0, -850),  // Short Straight 1
+      new THREE.Vector3(500, 0, -800),  // Corner 2
+      new THREE.Vector3(500, 0, 0),     // Long Straight 2
+      new THREE.Vector3(450, 0, 50),    // Corner 3
+      new THREE.Vector3(50, 0, 50),     // Short Straight 2
+      new THREE.Vector3(0, 0, 0),      // Back to Start
+    ], true, 'catmullrom', 0.1); // Tension 0.1 makes corners sharper/roads straighter
 
-    const trackTubeGeo = new THREE.TubeGeometry(curve, 256, 15, 12, true);
-    trackTubeGeo.scale(1, 0.01, 1);
-    
-    const colors = [];
-    const colorA = new THREE.Color(0x00ffff);
-    const colorB = new THREE.Color(0xff00ff);
-    const posAttr = trackTubeGeo.attributes.position;
-    for (let i = 0; i < posAttr.count; i++) {
-      const lerpVal = (i / posAttr.count) * 10 % 1.0;
-      const c = colorA.clone().lerp(colorB, lerpVal);
-      colors.push(c.r, c.g, c.b);
-    }
-    trackTubeGeo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-
+    const trackTubeGeo = new THREE.TubeGeometry(curve, 500, 22, 12, true);
+    trackTubeGeo.scale(1, 0.002, 1);
     const trackMat = new THREE.MeshStandardMaterial({ 
-      vertexColors: true,
-      roughness: 0.1,
-      metalness: 0.5,
-      side: THREE.DoubleSide 
+      color: 0x222222, 
+      roughness: 0.9, 
+      metalness: 0.05 
     });
     const trackMesh = new THREE.Mesh(trackTubeGeo, trackMat);
     trackMesh.receiveShadow = true;
     scene.add(trackMesh);
 
-    // --- Checkpoint Archways ---
-    const archways: THREE.Group[] = [];
-    const archGeo = new THREE.TorusGeometry(8, 0.4, 16, 32, Math.PI);
-    const archMat = new THREE.MeshStandardMaterial({ color: 0x00ff00, emissive: 0x00ff00, emissiveIntensity: 5 });
-    for (let i = 0; i < 10; i++) {
-      const arch = new THREE.Group();
-      const ring = new THREE.Mesh(archGeo, archMat);
-      ring.rotation.x = Math.PI;
-      arch.add(ring);
-      const t = i / 10;
-      const pos = curve.getPoint(t);
-      const tangent = curve.getTangent(t);
-      arch.position.copy(pos);
-      arch.lookAt(pos.clone().add(tangent));
-      scene.add(arch);
-      archways.push(arch);
-    }
+    // Grid helper for straight-line orientation
+    const grid = new THREE.GridHelper(2000, 40, 0xcccccc, 0xeeeeee);
+    grid.position.y = -0.1;
+    scene.add(grid);
 
-    // --- Gems ---
-    const gems: THREE.Mesh[] = [];
-    const gemGeo = new THREE.IcosahedronGeometry(0.8);
-    for (let i = 0; i < 30; i++) {
-      const gem = new THREE.Mesh(gemGeo, new THREE.MeshStandardMaterial({ 
-        color: 0xffff00, emissive: 0xffff00, emissiveIntensity: 2 
-      }));
-      const t = Math.random();
-      const pos = curve.getPoint(t);
-      const normal = curve.getTangent(t).cross(new THREE.Vector3(0, 1, 0)).normalize();
-      pos.add(normal.multiplyScalar((Math.random() - 0.5) * 12));
-      pos.y = 1.2;
-      gem.position.copy(pos);
-      scene.add(gem);
-      gems.push(gem);
-    }
+    // --- Obstacles ---
+    const obstacles: THREE.Mesh[] = [];
+    const barrierGeo = new THREE.BoxGeometry(4, 1.8, 0.8);
+    const barrierMat = new THREE.MeshStandardMaterial({ color: 0xee2222 });
+    
+    const generateObstacles = (count: number) => {
+      obstacles.forEach(o => scene.remove(o));
+      obstacles.length = 0;
+      for (let i = 0; i < count; i++) {
+        const barrier = new THREE.Mesh(barrierGeo, barrierMat);
+        const t = Math.random();
+        const pos = curve.getPoint(t);
+        const tangent = curve.getTangent(t);
+        const normal = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
+        
+        // Randomly place on left or right lane
+        const laneOffset = (Math.random() > 0.5 ? 1 : -1) * (6 + Math.random() * 8);
+        pos.add(normal.multiplyScalar(laneOffset));
+        pos.y = 0.9;
+        barrier.position.copy(pos);
+        barrier.lookAt(pos.clone().add(tangent));
+        barrier.castShadow = true;
+        scene.add(barrier);
+        obstacles.push(barrier);
+      }
+    };
+    generateObstacles(10 * levelRef.current);
 
-    // --- Player Bike ---
-    const playerGroup = new THREE.Group();
-    const trailGeometry = new THREE.PlaneGeometry(0.2, 1);
-    const trailMaterial = new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.6, side: THREE.DoubleSide });
-    const trailMesh = new THREE.Mesh(trailGeometry, trailMaterial);
-    trailMesh.rotation.x = Math.PI / 2;
-    trailMesh.position.z = -1;
-    playerGroup.add(trailMesh);
+    // --- Car Visuals ---
+    const carGroup = new THREE.Group();
+    const bodyMat = new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.7, roughness: 0.1 });
+    const chassis = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.6, 4.5), bodyMat);
+    chassis.position.y = 0.4;
+    chassis.castShadow = true;
+    carGroup.add(chassis);
 
-    const bikeBody = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.7, 1.4), new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 1, roughness: 0 }));
-    bikeBody.position.y = 0.35;
-    playerGroup.add(bikeBody);
-    scene.add(playerGroup);
+    const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.5, 2.0), new THREE.MeshStandardMaterial({ color: 0x111111 }));
+    cabin.position.set(0, 0.85, -0.2);
+    carGroup.add(cabin);
 
-    // --- Logic Loop ---
+    const wheels: THREE.Mesh[] = [];
+    const wheelGeo = new THREE.CylinderGeometry(0.42, 0.42, 0.35, 24);
+    wheelGeo.rotateZ(Math.PI / 2);
+    const wheelMat = new THREE.MeshStandardMaterial({ color: 0x0a0a0a });
+    [[-0.95, 1.5], [0.95, 1.5], [-0.95, -1.5], [0.95, -1.5]].forEach(([x, z]) => {
+      const wheel = new THREE.Mesh(wheelGeo, wheelMat);
+      wheel.position.set(x, 0.42, z);
+      carGroup.add(wheel);
+      wheels.push(wheel);
+    });
+    scene.add(carGroup);
+
+    // --- Logic ---
     const keys: Record<string, boolean> = {};
     const onKeyDown = (e: KeyboardEvent) => keys[e.code] = true;
     const onKeyUp = (e: KeyboardEvent) => keys[e.code] = false;
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
 
-    let lScore = 0;
     let lProgress = 0;
     let lTask: string = TaskType.Collect;
     let lTotal = 5;
-    let lSpeedTimer = 0;
-    let lInitialHeading = 0;
     let lastTime = performance.now();
-    let frameId: number;
+    let collisionCooldown = 0;
 
     const animate = () => {
       const now = performance.now();
@@ -156,100 +156,74 @@ const Simulation: React.FC<SimulationProps> = ({ config, onTelemetry }) => {
       const pC = controllerRef.current;
       pC.update(dt, currentInputs);
 
-      trailMesh.scale.y = Math.max(0.01, pC.velocity * 0.5);
-      trailMesh.position.z = -trailMesh.scale.y / 2 - 0.5;
-
-      const playerPosVec = new THREE.Vector3(pC.position.x, 0, pC.position.z);
-      
-      // Mission Logic
-      if (lTask === TaskType.Collect) {
-        gems.forEach(gem => {
-          if (gem.visible && gem.position.distanceTo(playerPosVec) < 2.5) {
-            gem.visible = false;
-            lScore += 200;
-            lProgress++;
-            if (lProgress >= lTotal) {
-              lTask = CUSTOM_TASK_AGILE;
-              lProgress = 0;
-              lTotal = 180; // degrees
-              lInitialHeading = pC.heading;
-            }
-          }
-        });
-      } else if (lTask === CUSTOM_TASK_AGILE) {
-        const headingDiff = Math.abs(pC.heading - lInitialHeading) * (180 / Math.PI);
-        lProgress = Math.min(Math.floor(headingDiff), 180);
-        
-        if (pC.velocity * 3.6 > 30) {
-            lInitialHeading = pC.heading;
-            lProgress = 0;
+      // Collision Detection
+      if (collisionCooldown > 0) collisionCooldown -= dt;
+      obstacles.forEach(obs => {
+        const dist = obs.position.distanceTo(new THREE.Vector3(pC.position.x, 0.9, pC.position.z));
+        if (dist < 2.6 && collisionCooldown <= 0) {
+          pC.velocity *= 0.4; // Sharp penalty for hitting barriers
+          scoreRef.current = Math.max(0, scoreRef.current - 800);
+          collisionCooldown = 1.2;
+          carGroup.position.y += 0.4; // Jolt
         }
-
-        if (lProgress >= 180) {
-          lTask = TaskType.Speed;
-          lProgress = 0;
-          lTotal = 5;
-          lScore += 1500;
-        }
-      } else if (lTask === TaskType.Speed) {
-        if (pC.velocity * 3.6 > 130) {
-          lSpeedTimer += dt;
-          lProgress = Math.floor(lSpeedTimer);
-          if (lSpeedTimer >= 5) {
-            lTask = TaskType.Checkpoint;
-            lProgress = 0;
-            lTotal = 3;
-            lScore += 1000;
-          }
-        } else {
-          lSpeedTimer = 0;
-          lProgress = 0;
-        }
-      } else if (lTask === TaskType.Checkpoint) {
-        archways.forEach((arch) => {
-          if (arch.visible && arch.position.distanceTo(playerPosVec) < 6) {
-            arch.visible = false;
-            lProgress++;
-            lScore += 500;
-            if (lProgress >= lTotal) {
-              lTask = TaskType.Collect;
-              lProgress = 0;
-              lTotal = 5;
-              gems.forEach(g => g.visible = true);
-              archways.forEach(a => a.visible = true);
-            }
-          }
-        });
-      }
-
-      playerGroup.position.set(pC.position.x, pC.position.y, pC.position.z);
-      playerGroup.rotation.y = pC.heading;
-      playerGroup.rotation.z = -pC.leanAngle;
-      pointLight.position.set(pC.position.x, pC.position.y + 2, pC.position.z);
-
-      // Single telemetry call per frame
-      const baseTelemetry = pC.getTelemetry(currentInputs, { score: lScore, lap: 1, position: 1 });
-      onTelemetry({
-        ...baseTelemetry,
-        currentTask: lTask,
-        taskProgress: lProgress,
-        taskTotal: lTotal
       });
 
-      const camDist = 7 + (pC.velocity * 0.1);
-      camera.position.lerp(new THREE.Vector3(
+      // Visuals
+      carGroup.position.set(pC.position.x, pC.position.y, pC.position.z);
+      carGroup.rotation.y = pC.heading;
+      chassis.rotation.z = pC.bodyRoll;
+      chassis.rotation.x = -pC.bodyPitch;
+      wheels.forEach((w, i) => {
+        w.rotation.x += pC.velocity * 0.5 * dt;
+        if (i < 2) w.rotation.y = currentInputs.steer * 0.45;
+      });
+
+      // Level Progress Logic
+      if (lTask === TaskType.Collect) {
+          lProgress = Math.min(lTotal, lProgress + (pC.velocity > 15 ? dt * 0.15 : 0));
+          if (lProgress >= lTotal) {
+            levelRef.current = Math.min(5, levelRef.current + 1);
+            lProgress = 0;
+            scoreRef.current += 3000;
+            generateObstacles(8 * levelRef.current);
+          }
+      }
+
+      const baseTelemetry = pC.getTelemetry(currentInputs, { 
+        score: scoreRef.current, 
+        lap: 1, 
+        position: 1,
+        level: levelRef.current 
+      });
+      onTelemetry({ 
+        ...baseTelemetry, 
+        currentTask: lTask, 
+        taskProgress: Math.floor(lProgress), 
+        taskTotal: lTotal 
+      });
+
+      // Cinematic Chase Camera for Straights
+      const camDist = 14 + (pC.velocity * 0.15);
+      const camHeight = 4.0;
+      const targetCamPos = new THREE.Vector3(
         pC.position.x - Math.sin(pC.heading) * camDist,
-        pC.position.y + 3.5,
+        pC.position.y + camHeight,
         pC.position.z - Math.cos(pC.heading) * camDist
-      ), 0.15);
-      camera.lookAt(pC.position.x, pC.position.y + 1, pC.position.z);
-      camera.fov = 70 + (pC.velocity * 0.4);
+      );
+      camera.position.lerp(targetCamPos, 0.12);
+      camera.lookAt(
+        pC.position.x + Math.sin(pC.heading) * 10,
+        pC.position.y + 0.5,
+        pC.position.z + Math.cos(pC.heading) * 10
+      );
+      
+      camera.fov = 55 + (pC.velocity * 0.45);
       camera.updateProjectionMatrix();
 
       renderer.render(scene, camera);
-      frameId = requestAnimationFrame(animate);
+      requestAnimationFrame(animate);
     };
-    frameId = requestAnimationFrame(animate);
+    animate();
 
     const handleResize = () => {
       camera.aspect = window.innerWidth / window.innerHeight;
@@ -262,10 +236,6 @@ const Simulation: React.FC<SimulationProps> = ({ config, onTelemetry }) => {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
       window.removeEventListener('resize', handleResize);
-      cancelAnimationFrame(frameId);
-      if (containerRef.current) {
-        containerRef.current.removeChild(renderer.domElement);
-      }
       renderer.dispose();
     };
   }, [onTelemetry]);

@@ -5,7 +5,8 @@ export interface PhysicsConfig {
   engineBraking: number;
   manualBraking: number;
   steeringSensitivity: number;
-  leanFactor: number;
+  rollFactor: number;
+  pitchFactor: number;
   angularDamping: number;
   tractionAsphalt: number;
   suspensionStiffness: number;
@@ -14,7 +15,8 @@ export interface PhysicsConfig {
 
 export interface TelemetryData {
   speed: number;
-  leanAngle: number;
+  bodyRoll: number;
+  bodyPitch: number;
   rpm: number;
   gear: number;
   throttle: number;
@@ -23,17 +25,10 @@ export interface TelemetryData {
   score: number;
   lap: number;
   position: number;
-  // Game state fields are optional for parts of the system (like physics) that don't track them
+  level: number;
   currentTask?: string;
   taskProgress?: number;
   taskTotal?: number;
-}
-
-export enum SurfaceType {
-  Asphalt = 'Asphalt',
-  Dirt = 'Dirt',
-  Wet = 'Wet',
-  Oil = 'Oil'
 }
 
 export enum TaskType {

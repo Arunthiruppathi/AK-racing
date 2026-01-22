@@ -5,26 +5,21 @@ import { PhysicsConfig, TelemetryData, TaskType } from './types.ts';
 import { GoogleGenAI, Type } from '@google/genai';
 
 const DEFAULT_CONFIG: PhysicsConfig = {
-  maxSpeed: 95,
-  acceleration: 22,
-  engineBraking: 3,
-  manualBraking: 45,
-  steeringSensitivity: 0.95,
-  leanFactor: 0.55,
+  maxSpeed: 130, // Higher max speed for straights
+  acceleration: 45, // Quicker acceleration
+  engineBraking: 4,
+  manualBraking: 70,
+  steeringSensitivity: 0.95, // Lower for stability on straights
+  rollFactor: 0.12,
+  pitchFactor: 0.12,
   angularDamping: 8.0,
   tractionAsphalt: 1.0,
   suspensionStiffness: 65.0,
-  suspensionDamping: 7.0
+  suspensionDamping: 15.0
 };
 
-const getTaskDescription = (type: string) => {
-  switch (type) {
-    case TaskType.Collect: return "Collect 5 Yellow Nitro Gems";
-    case TaskType.Speed: return "Stay above 130 KM/H for 5s";
-    case TaskType.Checkpoint: return "Pass through 3 Neon Arches";
-    case "TECHNICAL_U_TURN": return "Perform a 180° Technical Turn (< 30 KM/H)";
-    default: return "Complete the race";
-  }
+const getTaskDescription = (type: string, level: number) => {
+  return `Stage ${level}: Full Throttle Endurance`;
 };
 
 const App: React.FC = () => {
@@ -39,20 +34,12 @@ const App: React.FC = () => {
 
   const handleAiTune = async () => {
     if (!aiPrompt.trim()) return;
-    
-    // Safety check for API key availability
-    const apiKey = typeof process !== 'undefined' ? process.env.API_KEY : undefined;
-    if (!apiKey) {
-      console.error("API Key not found in process.env");
-      return;
-    }
-
     setIsTuning(true);
     try {
-      const ai = new GoogleGenAI({ apiKey });
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
       const response = await ai.models.generateContent({
         model: 'gemini-3-pro-preview',
-        contents: `Professional motorcycle engineer. Tune: "${aiPrompt}". Keep racing arcade feel. Current: ${JSON.stringify(config)}`,
+        contents: `Professional drag racing engineer. Optimize for straight-line speed and high-speed corner stability: "${aiPrompt}". Current level: ${telemetry?.level || 1}. Current config: ${JSON.stringify(config)}`,
         config: {
           responseMimeType: 'application/json',
           responseSchema: {
@@ -63,7 +50,8 @@ const App: React.FC = () => {
               engineBraking: { type: Type.NUMBER },
               manualBraking: { type: Type.NUMBER },
               steeringSensitivity: { type: Type.NUMBER },
-              leanFactor: { type: Type.NUMBER },
+              rollFactor: { type: Type.NUMBER },
+              pitchFactor: { type: Type.NUMBER },
               angularDamping: { type: Type.NUMBER },
               tractionAsphalt: { type: Type.NUMBER },
               suspensionStiffness: { type: Type.NUMBER },
@@ -74,108 +62,93 @@ const App: React.FC = () => {
       });
       if (response.text) setConfig(JSON.parse(response.text.trim()));
       setAiPrompt('');
-    } catch (e) { 
-      console.error(e); 
-    } finally { 
-      setIsTuning(false); 
-    }
+    } catch (e) { console.error(e); } finally { setIsTuning(false); }
   };
 
-  const isAgileMode = telemetry !== null && telemetry.speed < 30;
-
   return (
-    <div className="relative w-full h-screen overflow-hidden text-white font-sans bg-black">
+    <div className="relative w-full h-screen overflow-hidden text-slate-900 font-sans bg-[#f0f4f8]">
       <Simulation config={config} onTelemetry={handleTelemetry} />
 
-      {/* Top Mission HUD */}
-      <div className="absolute top-8 left-1/2 -translate-x-1/2 w-[400px] pointer-events-none">
-        <div className={`glass p-4 rounded-2xl border-t-2 transition-all duration-300 ${telemetry?.currentTask === "TECHNICAL_U_TURN" ? 'border-orange-500 shadow-[0_0_30px_rgba(249,115,22,0.3)]' : 'border-yellow-400 shadow-[0_0_30px_rgba(255,255,0,0.2)]'}`}>
+      {/* Top Level HUD */}
+      <div className="absolute top-8 left-1/2 -translate-x-1/2 w-[450px] pointer-events-none">
+        <div className="glass-light p-5 rounded-[2rem] border-b-8 border-indigo-600 shadow-2xl">
           <div className="flex items-center justify-between mb-2">
-            <span className={`text-[10px] font-black uppercase tracking-[0.4em] ${telemetry?.currentTask === "TECHNICAL_U_TURN" ? 'text-orange-400' : 'text-yellow-400'}`}>Current Mission</span>
-            <span className={`text-[10px] font-mono px-2 py-0.5 rounded ${telemetry?.currentTask === "TECHNICAL_U_TURN" ? 'bg-orange-500 text-black' : 'bg-yellow-400 text-black'}`}>ACTIVE</span>
+            <span className="text-[11px] font-black uppercase tracking-[0.4em] text-indigo-700">Straightline Sprint</span>
+            <span className="text-[11px] font-mono px-3 py-1 rounded-full bg-indigo-600 text-white shadow-inner">LEVEL {telemetry?.level || 1}</span>
           </div>
-          <h3 className="text-lg font-black italic tracking-tighter uppercase leading-none mb-3">
-            {getTaskDescription(telemetry?.currentTask || '')}
+          <h3 className="text-2xl font-black tracking-tighter uppercase italic leading-none mb-3">
+            {getTaskDescription(telemetry?.currentTask || '', telemetry?.level || 1)}
           </h3>
-          <div className="h-2 bg-black/40 rounded-full overflow-hidden flex">
-            {telemetry?.currentTask === "TECHNICAL_U_TURN" ? (
-                <div 
-                  className="h-full bg-gradient-to-r from-orange-400 to-orange-600 transition-all duration-300 shadow-[0_0_10px_rgba(249,115,22,0.8)]" 
-                  style={{ width: `${telemetry.taskTotal ? (telemetry.taskProgress || 0) / telemetry.taskTotal * 100 : 0}%` }}
-                />
-            ) : (
-                Array.from({ length: telemetry?.taskTotal || 1 }).map((_, i) => (
-                  <div 
-                    key={i} 
-                    className={`flex-1 h-full border-r border-black/20 transition-all duration-500 ${
-                      i < (telemetry?.taskProgress || 0) ? 'bg-gradient-to-r from-yellow-300 to-yellow-500 shadow-[0_0_10px_rgba(255,255,0,0.8)]' : 'bg-white/5'
-                    }`}
-                  />
-                ))
-            )}
+          <div className="h-3 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
+            <div 
+              className="h-full bg-gradient-to-r from-indigo-500 via-blue-400 to-indigo-600 transition-all duration-300 shadow-[0_0_15px_rgba(79,70,229,0.5)]" 
+              style={{ width: `${telemetry?.taskTotal ? (telemetry.taskProgress || 0) / telemetry.taskTotal * 100 : 0}%` }}
+            />
           </div>
         </div>
       </div>
 
-      {/* Left HUD */}
-      <div className="absolute top-8 left-8 flex flex-col gap-4 pointer-events-none">
-        <div className={`glass p-6 rounded-2xl w-64 border-l-4 transition-all duration-300 ${isAgileMode ? 'border-orange-500 shadow-[0_0_20px_rgba(249,115,22,0.4)]' : 'border-cyan-500'}`}>
-          <h2 className={`text-[10px] uppercase tracking-widest font-bold mb-1 ${isAgileMode ? 'text-orange-400' : 'text-cyan-400'}`}>
-            {isAgileMode ? "Technical Agility Mode" : "Live Velocity"}
-          </h2>
-          <div className="flex items-baseline gap-2">
-            <span className={`text-7xl font-black italic tracking-tighter text-transparent bg-clip-text bg-gradient-to-b ${isAgileMode ? 'from-white to-orange-500' : 'from-white to-cyan-500'}`}>
+      {/* Speedometer HUD */}
+      <div className="absolute bottom-12 left-12 flex flex-col gap-4 pointer-events-none">
+        <div className="glass-light p-10 rounded-[3rem] w-80 border-l-[12px] border-indigo-700 shadow-2xl">
+          <h2 className="text-[12px] uppercase tracking-[0.2em] font-black mb-1 text-slate-400">Velocity</h2>
+          <div className="flex items-baseline gap-2 mb-8">
+            <span className="text-9xl font-black tracking-tighter text-slate-900 drop-shadow-sm">
               {telemetry?.speed ?? 0}
             </span>
-            <span className={`text-xl font-bold italic ${isAgileMode ? 'text-orange-800' : 'text-cyan-800'}`}>KM/H</span>
+            <span className="text-2xl font-black italic text-indigo-800">KM/H</span>
           </div>
           
-          <div className="mt-4 flex justify-between items-end border-t border-white/5 pt-4">
-            <div>
-              <p className="text-[9px] text-gray-400 uppercase">Gear</p>
-              <p className="text-3xl font-black italic text-cyan-400">{telemetry?.gear ?? 1}</p>
+          <div className="grid grid-cols-2 gap-8 pt-6 border-t-2 border-slate-100">
+            <div className="flex flex-col">
+              <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest">G-Force</span>
+              <span className="text-3xl font-black text-slate-800 tracking-tighter">{telemetry?.bodyRoll ?? 0}°</span>
             </div>
-            <div className="text-right">
-              <p className="text-[9px] text-gray-400 uppercase">Total Score</p>
-              <p className="text-3xl font-black italic text-magenta-400">{telemetry?.score ?? 0}</p>
+            <div className="flex flex-col text-right">
+              <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Total Points</span>
+              <span className="text-3xl font-black text-indigo-600 tracking-tighter">{telemetry?.score ?? 0}</span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Right AI Tuner */}
-      <div className="absolute top-8 right-8 w-80 glass p-6 rounded-2xl pointer-events-auto border-b-2 border-magenta-500/50">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-10 h-10 bg-gradient-to-br from-magenta-600 to-purple-800 rounded-xl flex items-center justify-center shadow-lg">
-            <i className="fas fa-rocket text-sm"></i>
+      {/* Tuning Dashboard */}
+      <div className="absolute top-8 right-8 w-80 glass-light p-7 rounded-[2.5rem] pointer-events-auto border-r-4 border-indigo-300">
+        <div className="flex items-center gap-4 mb-5">
+          <div className="w-14 h-14 bg-indigo-900 rounded-2xl flex items-center justify-center shadow-xl rotate-3">
+            <i className="fas fa-gauge-high text-indigo-400 text-xl"></i>
           </div>
           <div>
-            <h3 className="font-black text-xs uppercase tracking-widest italic text-magenta-400">X-Tuning AI</h3>
-            <p className="text-[9px] text-gray-500">Neuro-Physics Adjustment</p>
+            <h3 className="font-black text-sm uppercase tracking-tight text-slate-900">Sprint Tuner AI</h3>
+            <p className="text-[10px] text-slate-500 font-bold">Aerodynamic Synthesis</p>
           </div>
         </div>
         <textarea 
-          className="w-full bg-black/60 border border-white/10 rounded-xl p-3 text-xs focus:outline-none focus:border-magenta-500 h-24 mb-4 font-mono"
-          placeholder="Make it feel weightless..."
+          className="w-full bg-white/50 backdrop-blur-sm border-2 border-slate-100 rounded-[1.5rem] p-5 text-sm focus:outline-none focus:ring-4 focus:ring-indigo-200 h-32 mb-5 shadow-inner font-medium"
+          placeholder="e.g. Reduce turn scrub and boost torque..."
           value={aiPrompt}
           onChange={(e) => setAiPrompt(e.target.value)}
         />
         <button 
           onClick={handleAiTune}
           disabled={isTuning || !aiPrompt.trim()}
-          className="w-full py-4 bg-magenta-600 hover:bg-magenta-500 rounded-xl text-[11px] font-black uppercase tracking-[0.2em] transition-all shadow-[0_0_20px_rgba(255,0,255,0.2)]"
+          className="w-full py-5 bg-indigo-950 hover:bg-black text-white rounded-2xl text-[11px] font-black uppercase tracking-[0.3em] transition-all shadow-xl active:scale-95 group"
         >
-          {isTuning ? "Synthesizing..." : "Calibrate Physics"}
+          {isTuning ? (
+            <span className="flex items-center justify-center gap-2">
+              <i className="fas fa-circle-notch animate-spin"></i> Analyzing...
+            </span>
+          ) : (
+            "Calibrate Output"
+          )}
         </button>
       </div>
 
-      {/* Legend & Helpers */}
-      <div className="absolute bottom-8 right-8 flex gap-4 pointer-events-none opacity-60">
-        <div className={`glass px-4 py-2 rounded-xl border transition-colors duration-300 ${isAgileMode ? 'border-orange-500' : 'border-cyan-500/20'}`}>
-          <span className="text-[10px] font-black uppercase tracking-widest">
-            {isAgileMode ? <span className="text-orange-400">Agility Boost Active</span> : <>Cyan Section <span className="text-cyan-400">Boost</span></>}
-          </span>
-        </div>
+      {/* Control Info */}
+      <div className="absolute bottom-8 right-8 glass-light px-8 py-4 rounded-full opacity-90 border-2 border-slate-100 shadow-lg">
+        <span className="text-[12px] font-black uppercase tracking-widest text-indigo-900 flex items-center gap-3">
+          <i className="fas fa-arrows-to-dot text-indigo-500"></i> Speed drops in corners • Straight roads ahead
+        </span>
       </div>
     </div>
   );
