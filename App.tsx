@@ -1,7 +1,7 @@
 
 import React, { useState, useCallback } from 'react';
-import Simulation from './components/Simulation';
-import { PhysicsConfig, TelemetryData, TaskType } from './types';
+import Simulation from './components/Simulation.tsx';
+import { PhysicsConfig, TelemetryData, TaskType } from './types.ts';
 import { GoogleGenAI, Type } from '@google/genai';
 
 const DEFAULT_CONFIG: PhysicsConfig = {
@@ -39,9 +39,17 @@ const App: React.FC = () => {
 
   const handleAiTune = async () => {
     if (!aiPrompt.trim()) return;
+    
+    // Safety check for API key availability
+    const apiKey = typeof process !== 'undefined' ? process.env.API_KEY : undefined;
+    if (!apiKey) {
+      console.error("API Key not found in process.env");
+      return;
+    }
+
     setIsTuning(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new GoogleGenAI({ apiKey });
       const response = await ai.models.generateContent({
         model: 'gemini-3-pro-preview',
         contents: `Professional motorcycle engineer. Tune: "${aiPrompt}". Keep racing arcade feel. Current: ${JSON.stringify(config)}`,
@@ -66,10 +74,14 @@ const App: React.FC = () => {
       });
       if (response.text) setConfig(JSON.parse(response.text.trim()));
       setAiPrompt('');
-    } catch (e) { console.error(e); } finally { setIsTuning(false); }
+    } catch (e) { 
+      console.error(e); 
+    } finally { 
+      setIsTuning(false); 
+    }
   };
 
-  const isAgileMode = telemetry && telemetry.speed < 30;
+  const isAgileMode = telemetry !== null && telemetry.speed < 30;
 
   return (
     <div className="relative w-full h-screen overflow-hidden text-white font-sans bg-black">
@@ -89,7 +101,7 @@ const App: React.FC = () => {
             {telemetry?.currentTask === "TECHNICAL_U_TURN" ? (
                 <div 
                   className="h-full bg-gradient-to-r from-orange-400 to-orange-600 transition-all duration-300 shadow-[0_0_10px_rgba(249,115,22,0.8)]" 
-                  style={{ width: `${(telemetry.taskProgress / telemetry.taskTotal) * 100}%` }}
+                  style={{ width: `${telemetry.taskTotal ? (telemetry.taskProgress || 0) / telemetry.taskTotal * 100 : 0}%` }}
                 />
             ) : (
                 Array.from({ length: telemetry?.taskTotal || 1 }).map((_, i) => (
@@ -113,7 +125,7 @@ const App: React.FC = () => {
           </h2>
           <div className="flex items-baseline gap-2">
             <span className={`text-7xl font-black italic tracking-tighter text-transparent bg-clip-text bg-gradient-to-b ${isAgileMode ? 'from-white to-orange-500' : 'from-white to-cyan-500'}`}>
-              {telemetry?.speed || 0}
+              {telemetry?.speed ?? 0}
             </span>
             <span className={`text-xl font-bold italic ${isAgileMode ? 'text-orange-800' : 'text-cyan-800'}`}>KM/H</span>
           </div>
@@ -121,11 +133,11 @@ const App: React.FC = () => {
           <div className="mt-4 flex justify-between items-end border-t border-white/5 pt-4">
             <div>
               <p className="text-[9px] text-gray-400 uppercase">Gear</p>
-              <p className="text-3xl font-black italic text-cyan-400">{telemetry?.gear || 1}</p>
+              <p className="text-3xl font-black italic text-cyan-400">{telemetry?.gear ?? 1}</p>
             </div>
             <div className="text-right">
               <p className="text-[9px] text-gray-400 uppercase">Total Score</p>
-              <p className="text-3xl font-black italic text-magenta-400">{telemetry?.score || 0}</p>
+              <p className="text-3xl font-black italic text-magenta-400">{telemetry?.score ?? 0}</p>
             </div>
           </div>
         </div>

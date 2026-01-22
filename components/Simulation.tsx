@@ -1,8 +1,8 @@
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
-import { MotorcycleController } from '../physics/MotorcycleController';
-import { PhysicsConfig, TelemetryData, TaskType } from '../types';
+import { MotorcycleController } from '../physics/MotorcycleController.ts';
+import { PhysicsConfig, TelemetryData, TaskType } from '../types.ts';
 
 // Extended Task Types
 const CUSTOM_TASK_AGILE = "TECHNICAL_U_TURN";
@@ -16,16 +16,6 @@ const Simulation: React.FC<SimulationProps> = ({ config, onTelemetry }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const controllerRef = useRef<MotorcycleController>(new MotorcycleController(config));
   
-  // Mission State
-  const [gameState, setGameState] = useState({
-    score: 0,
-    currentTask: TaskType.Collect,
-    progress: 0,
-    total: 5,
-    speedTimer: 0,
-    initialHeading: 0
-  });
-
   useEffect(() => {
     controllerRef.current.config = config;
   }, [config]);
@@ -69,9 +59,9 @@ const Simulation: React.FC<SimulationProps> = ({ config, onTelemetry }) => {
     const colors = [];
     const colorA = new THREE.Color(0x00ffff);
     const colorB = new THREE.Color(0xff00ff);
-    const count = trackTubeGeo.attributes.position.count;
-    for (let i = 0; i < count; i++) {
-      const lerpVal = (i / count) * 10 % 1.0;
+    const posAttr = trackTubeGeo.attributes.position;
+    for (let i = 0; i < posAttr.count; i++) {
+      const lerpVal = (i / posAttr.count) * 10 % 1.0;
       const c = colorA.clone().lerp(colorB, lerpVal);
       colors.push(c.r, c.g, c.b);
     }
@@ -138,8 +128,10 @@ const Simulation: React.FC<SimulationProps> = ({ config, onTelemetry }) => {
 
     // --- Logic Loop ---
     const keys: Record<string, boolean> = {};
-    window.addEventListener('keydown', (e) => keys[e.code] = true);
-    window.addEventListener('keyup', (e) => keys[e.code] = false);
+    const onKeyDown = (e: KeyboardEvent) => keys[e.code] = true;
+    const onKeyUp = (e: KeyboardEvent) => keys[e.code] = false;
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
 
     let lScore = 0;
     let lProgress = 0;
@@ -148,10 +140,11 @@ const Simulation: React.FC<SimulationProps> = ({ config, onTelemetry }) => {
     let lSpeedTimer = 0;
     let lInitialHeading = 0;
     let lastTime = performance.now();
+    let frameId: number;
 
     const animate = () => {
       const now = performance.now();
-      const dt = Math.min((now - lastTime) / 1000, 0.05);
+      const dt = Math.max(0.001, Math.min((now - lastTime) / 1000, 0.05));
       lastTime = now;
 
       const currentInputs = {
@@ -163,12 +156,12 @@ const Simulation: React.FC<SimulationProps> = ({ config, onTelemetry }) => {
       const pC = controllerRef.current;
       pC.update(dt, currentInputs);
 
-      trailMesh.scale.y = pC.velocity * 0.5;
+      trailMesh.scale.y = Math.max(0.01, pC.velocity * 0.5);
       trailMesh.position.z = -trailMesh.scale.y / 2 - 0.5;
 
       const playerPosVec = new THREE.Vector3(pC.position.x, 0, pC.position.z);
       
-      // Extended Mission Logic including Agile U-Turn
+      // Mission Logic
       if (lTask === TaskType.Collect) {
         gems.forEach(gem => {
           if (gem.visible && gem.position.distanceTo(playerPosVec) < 2.5) {
@@ -184,12 +177,10 @@ const Simulation: React.FC<SimulationProps> = ({ config, onTelemetry }) => {
           }
         });
       } else if (lTask === CUSTOM_TASK_AGILE) {
-        // Goal: Perform a 180 degree pivot at low speed
         const headingDiff = Math.abs(pC.heading - lInitialHeading) * (180 / Math.PI);
         lProgress = Math.min(Math.floor(headingDiff), 180);
         
         if (pC.velocity * 3.6 > 30) {
-            // Reset if too fast - requires low speed agility
             lInitialHeading = pC.heading;
             lProgress = 0;
         }
@@ -236,6 +227,7 @@ const Simulation: React.FC<SimulationProps> = ({ config, onTelemetry }) => {
       playerGroup.rotation.z = -pC.leanAngle;
       pointLight.position.set(pC.position.x, pC.position.y + 2, pC.position.z);
 
+      // Single telemetry call per frame
       const baseTelemetry = pC.getTelemetry(currentInputs, { score: lScore, lap: 1, position: 1 });
       onTelemetry({
         ...baseTelemetry,
@@ -255,9 +247,9 @@ const Simulation: React.FC<SimulationProps> = ({ config, onTelemetry }) => {
       camera.updateProjectionMatrix();
 
       renderer.render(scene, camera);
-      requestAnimationFrame(animate);
+      frameId = requestAnimationFrame(animate);
     };
-    animate();
+    frameId = requestAnimationFrame(animate);
 
     const handleResize = () => {
       camera.aspect = window.innerWidth / window.innerHeight;
@@ -265,8 +257,18 @@ const Simulation: React.FC<SimulationProps> = ({ config, onTelemetry }) => {
       renderer.setSize(window.innerWidth, window.innerHeight);
     };
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
+    
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+      window.removeEventListener('resize', handleResize);
+      cancelAnimationFrame(frameId);
+      if (containerRef.current) {
+        containerRef.current.removeChild(renderer.domElement);
+      }
+      renderer.dispose();
+    };
+  }, [onTelemetry]);
 
   return <div ref={containerRef} className="w-full h-full" />;
 };

@@ -1,5 +1,5 @@
 
-import { PhysicsConfig, TelemetryData } from '../types';
+import { PhysicsConfig, TelemetryData } from '../types.ts';
 
 export class MotorcycleController {
   public config: PhysicsConfig;
@@ -45,16 +45,14 @@ export class MotorcycleController {
     const effectiveSteer = inputs.steer * steerLimit;
 
     // Agility Factor: Boosts turning capability significantly at low speeds
-    // This allows for sharp technical turns and 180-degree pivots
     const agilityMultiplier = 2.5 - (normalizedSpeed * 1.8);
     const turnRate = effectiveSteer * agilityMultiplier * this.config.steeringSensitivity;
     
     // Applying heading change. We add a small floor to velocity for steering 
-    // to ensure the bike feels responsive even when starting from a stop.
     const turnVelocity = Math.max(this.velocity, 2.0); 
     this.heading += turnRate * turnVelocity * dt;
 
-    // Lean logic: Proportional to speed. No leaning at zero speed, deep leaning at high speed.
+    // Lean logic: Proportional to speed
     const targetLean = effectiveSteer * normalizedSpeed * this.config.leanFactor * 1.5;
     const effectiveDamping = this.config.angularDamping * this.stabilityModifier;
     this.leanAngle += (targetLean - this.leanAngle) * effectiveDamping * dt;
