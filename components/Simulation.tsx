@@ -22,65 +22,73 @@ const Simulation: React.FC<SimulationProps> = ({ config, onTelemetry }) => {
   useEffect(() => {
     if (!containerRef.current) return;
 
-    // --- Scene Setup ---
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xf0f7ff);
-    scene.fog = new THREE.Fog(0xf0f7ff, 100, 1200);
+    scene.background = new THREE.Color(0xdceeff);
+    scene.fog = new THREE.Fog(0xdceeff, 200, 1500);
 
     const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 5000);
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     containerRef.current.appendChild(renderer.domElement);
 
-    // --- High Contrast Daylight Lighting ---
-    const sun = new THREE.DirectionalLight(0xffffff, 1.4);
-    sun.position.set(200, 400, 100);
+    // --- Lighting ---
+    const sun = new THREE.DirectionalLight(0xffffff, 1.5);
+    sun.position.set(300, 600, 200);
     sun.castShadow = true;
-    sun.shadow.camera.left = -500;
-    sun.shadow.camera.right = 500;
-    sun.shadow.camera.top = 500;
-    sun.shadow.camera.bottom = -500;
-    sun.shadow.mapSize.width = 4096;
-    sun.shadow.mapSize.height = 4096;
+    sun.shadow.camera.left = -600;
+    sun.shadow.camera.right = 600;
+    sun.shadow.camera.top = 600;
+    sun.shadow.camera.bottom = -600;
+    sun.shadow.mapSize.width = 2048;
+    sun.shadow.mapSize.height = 2048;
     scene.add(sun);
-    scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+    scene.add(new THREE.AmbientLight(0xffffff, 0.4));
 
-    // --- Straight Road Layout ---
+    // --- High Speed Straightaway Track ---
     const curve = new THREE.CatmullRomCurve3([
       new THREE.Vector3(0, 0, 0),
-      new THREE.Vector3(0, 0, -800),    // Long Straight 1
-      new THREE.Vector3(50, 0, -850),   // Corner 1
-      new THREE.Vector3(450, 0, -850),  // Short Straight 1
-      new THREE.Vector3(500, 0, -800),  // Corner 2
-      new THREE.Vector3(500, 0, 0),     // Long Straight 2
-      new THREE.Vector3(450, 0, 50),    // Corner 3
-      new THREE.Vector3(50, 0, 50),     // Short Straight 2
-      new THREE.Vector3(0, 0, 0),      // Back to Start
-    ], true, 'catmullrom', 0.1); // Tension 0.1 makes corners sharper/roads straighter
+      new THREE.Vector3(0, 0, -1200),    // Main Straight
+      new THREE.Vector3(100, 0, -1300),  // Sharp Corner 1
+      new THREE.Vector3(600, 0, -1300),  // Back Straight Top
+      new THREE.Vector3(700, 0, -1200),  // Corner 2
+      new THREE.Vector3(700, 0, 0),      // Return Straight
+      new THREE.Vector3(600, 0, 100),    // Corner 3
+      new THREE.Vector3(100, 0, 100),    // Front Straight
+      new THREE.Vector3(0, 0, 0),
+    ], true, 'catmullrom', 0.05); 
 
-    const trackTubeGeo = new THREE.TubeGeometry(curve, 500, 22, 12, true);
-    trackTubeGeo.scale(1, 0.002, 1);
+    const trackWidth = 28;
+    const trackTubeGeo = new THREE.TubeGeometry(curve, 600, trackWidth / 2, 8, true);
+    trackTubeGeo.scale(1, 0.001, 1);
+    
+    // Custom shader-like material for track lines
     const trackMat = new THREE.MeshStandardMaterial({ 
-      color: 0x222222, 
-      roughness: 0.9, 
-      metalness: 0.05 
+      color: 0x1a1a1a, 
+      roughness: 0.8,
+      metalness: 0.1
     });
     const trackMesh = new THREE.Mesh(trackTubeGeo, trackMat);
     trackMesh.receiveShadow = true;
     scene.add(trackMesh);
 
-    // Grid helper for straight-line orientation
-    const grid = new THREE.GridHelper(2000, 40, 0xcccccc, 0xeeeeee);
-    grid.position.y = -0.1;
+    // Decorative side curbs
+    const curbGeo = new THREE.TubeGeometry(curve, 600, (trackWidth / 2) + 0.5, 8, true);
+    curbGeo.scale(1, 0.002, 1);
+    const curbMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
+    const curbMesh = new THREE.Mesh(curbGeo, curbMat);
+    scene.add(curbMesh);
+
+    const grid = new THREE.GridHelper(3000, 60, 0xbbccdd, 0xccdde0);
+    grid.position.y = -0.05;
     scene.add(grid);
 
     // --- Obstacles ---
     const obstacles: THREE.Mesh[] = [];
-    const barrierGeo = new THREE.BoxGeometry(4, 1.8, 0.8);
-    const barrierMat = new THREE.MeshStandardMaterial({ color: 0xee2222 });
+    const barrierGeo = new THREE.BoxGeometry(5, 2, 1);
+    const barrierMat = new THREE.MeshStandardMaterial({ color: 0xff3333, emissive: 0x330000 });
     
     const generateObstacles = (count: number) => {
       obstacles.forEach(o => scene.remove(o));
@@ -92,10 +100,9 @@ const Simulation: React.FC<SimulationProps> = ({ config, onTelemetry }) => {
         const tangent = curve.getTangent(t);
         const normal = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
         
-        // Randomly place on left or right lane
-        const laneOffset = (Math.random() > 0.5 ? 1 : -1) * (6 + Math.random() * 8);
+        const laneOffset = (Math.random() > 0.5 ? 1 : -1) * (7 + Math.random() * 5);
         pos.add(normal.multiplyScalar(laneOffset));
-        pos.y = 0.9;
+        pos.y = 1.0;
         barrier.position.copy(pos);
         barrier.lookAt(pos.clone().add(tangent));
         barrier.castShadow = true;
@@ -103,33 +110,46 @@ const Simulation: React.FC<SimulationProps> = ({ config, onTelemetry }) => {
         obstacles.push(barrier);
       }
     };
-    generateObstacles(10 * levelRef.current);
+    generateObstacles(12 * levelRef.current);
 
-    // --- Car Visuals ---
+    // --- Racing Car Model ---
     const carGroup = new THREE.Group();
-    const bodyMat = new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.7, roughness: 0.1 });
-    const chassis = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.6, 4.5), bodyMat);
-    chassis.position.y = 0.4;
+    
+    // Chassis
+    const bodyMat = new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.8, roughness: 0.1 });
+    const chassis = new THREE.Mesh(new THREE.BoxGeometry(2.3, 0.55, 4.8), bodyMat);
+    chassis.position.y = 0.45;
     chassis.castShadow = true;
     carGroup.add(chassis);
 
-    const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.5, 2.0), new THREE.MeshStandardMaterial({ color: 0x111111 }));
-    cabin.position.set(0, 0.85, -0.2);
+    // Cabin/Windshield
+    const glassMat = new THREE.MeshStandardMaterial({ color: 0x000000, metalness: 1.0, roughness: 0.0 });
+    const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.45, 2.2), glassMat);
+    cabin.position.set(0, 0.85, -0.3);
     carGroup.add(cabin);
 
+    // Rear Wing
+    const wingSupport = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.4, 0.1), bodyMat);
+    wingSupport.position.set(0, 0.8, 2.0);
+    carGroup.add(wingSupport);
+    const wingPlate = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.05, 0.8), bodyMat);
+    wingPlate.position.set(0, 1.0, 2.1);
+    carGroup.add(wingPlate);
+
     const wheels: THREE.Mesh[] = [];
-    const wheelGeo = new THREE.CylinderGeometry(0.42, 0.42, 0.35, 24);
+    const wheelGeo = new THREE.CylinderGeometry(0.45, 0.45, 0.4, 24);
     wheelGeo.rotateZ(Math.PI / 2);
-    const wheelMat = new THREE.MeshStandardMaterial({ color: 0x0a0a0a });
-    [[-0.95, 1.5], [0.95, 1.5], [-0.95, -1.5], [0.95, -1.5]].forEach(([x, z]) => {
+    const wheelMat = new THREE.MeshStandardMaterial({ color: 0x050505, roughness: 0.5 });
+    
+    [[-1.0, 1.6], [1.0, 1.6], [-1.0, -1.6], [1.0, -1.6]].forEach(([x, z]) => {
       const wheel = new THREE.Mesh(wheelGeo, wheelMat);
-      wheel.position.set(x, 0.42, z);
+      wheel.position.set(x, 0.45, z);
       carGroup.add(wheel);
       wheels.push(wheel);
     });
     scene.add(carGroup);
 
-    // --- Logic ---
+    // --- Simulation Loop ---
     const keys: Record<string, boolean> = {};
     const onKeyDown = (e: KeyboardEvent) => keys[e.code] = true;
     const onKeyUp = (e: KeyboardEvent) => keys[e.code] = false;
@@ -137,8 +157,8 @@ const Simulation: React.FC<SimulationProps> = ({ config, onTelemetry }) => {
     window.addEventListener('keyup', onKeyUp);
 
     let lProgress = 0;
-    let lTask: string = TaskType.Collect;
-    let lTotal = 5;
+    let lTask: string = TaskType.Speed;
+    let lTotal = 10;
     let lastTime = performance.now();
     let collisionCooldown = 0;
 
@@ -156,36 +176,37 @@ const Simulation: React.FC<SimulationProps> = ({ config, onTelemetry }) => {
       const pC = controllerRef.current;
       pC.update(dt, currentInputs);
 
-      // Collision Detection
+      // Collision
       if (collisionCooldown > 0) collisionCooldown -= dt;
       obstacles.forEach(obs => {
-        const dist = obs.position.distanceTo(new THREE.Vector3(pC.position.x, 0.9, pC.position.z));
-        if (dist < 2.6 && collisionCooldown <= 0) {
-          pC.velocity *= 0.4; // Sharp penalty for hitting barriers
-          scoreRef.current = Math.max(0, scoreRef.current - 800);
-          collisionCooldown = 1.2;
-          carGroup.position.y += 0.4; // Jolt
+        const carPos = new THREE.Vector3(pC.position.x, 1.0, pC.position.z);
+        if (obs.position.distanceTo(carPos) < 2.8 && collisionCooldown <= 0) {
+          pC.velocity *= 0.35; 
+          scoreRef.current = Math.max(0, scoreRef.current - 1000);
+          collisionCooldown = 1.5;
+          carGroup.position.y += 0.5; // Visual impact
         }
       });
 
-      // Visuals
+      // Visual Updates
       carGroup.position.set(pC.position.x, pC.position.y, pC.position.z);
       carGroup.rotation.y = pC.heading;
       chassis.rotation.z = pC.bodyRoll;
       chassis.rotation.x = -pC.bodyPitch;
+      
       wheels.forEach((w, i) => {
-        w.rotation.x += pC.velocity * 0.5 * dt;
-        if (i < 2) w.rotation.y = currentInputs.steer * 0.45;
+        w.rotation.x += pC.velocity * 0.45 * dt;
+        if (i < 2) w.rotation.y = currentInputs.steer * 0.4;
       });
 
-      // Level Progress Logic
-      if (lTask === TaskType.Collect) {
-          lProgress = Math.min(lTotal, lProgress + (pC.velocity > 15 ? dt * 0.15 : 0));
+      // Progress
+      if (lTask === TaskType.Speed) {
+          lProgress = Math.min(lTotal, lProgress + (pC.velocity > 25 ? dt * 0.2 : 0));
           if (lProgress >= lTotal) {
-            levelRef.current = Math.min(5, levelRef.current + 1);
+            levelRef.current = Math.min(10, levelRef.current + 1);
             lProgress = 0;
-            scoreRef.current += 3000;
-            generateObstacles(8 * levelRef.current);
+            scoreRef.current += 5000;
+            generateObstacles(10 + levelRef.current * 2);
           }
       }
 
@@ -202,22 +223,24 @@ const Simulation: React.FC<SimulationProps> = ({ config, onTelemetry }) => {
         taskTotal: lTotal 
       });
 
-      // Cinematic Chase Camera for Straights
-      const camDist = 14 + (pC.velocity * 0.15);
-      const camHeight = 4.0;
+      // Camera: Tracking sequential focus
+      const speedFactor = pC.velocity / pC.config.maxSpeed;
+      const camDist = 15 + (speedFactor * 6);
+      const camHeight = 4.5 - (speedFactor * 1.5);
+      
       const targetCamPos = new THREE.Vector3(
         pC.position.x - Math.sin(pC.heading) * camDist,
         pC.position.y + camHeight,
         pC.position.z - Math.cos(pC.heading) * camDist
       );
-      camera.position.lerp(targetCamPos, 0.12);
+      camera.position.lerp(targetCamPos, 0.1);
       camera.lookAt(
-        pC.position.x + Math.sin(pC.heading) * 10,
+        pC.position.x + Math.sin(pC.heading) * 15,
         pC.position.y + 0.5,
-        pC.position.z + Math.cos(pC.heading) * 10
+        pC.position.z + Math.cos(pC.heading) * 15
       );
       
-      camera.fov = 55 + (pC.velocity * 0.45);
+      camera.fov = 55 + (speedFactor * 30);
       camera.updateProjectionMatrix();
 
       renderer.render(scene, camera);
