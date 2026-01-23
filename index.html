@@ -3,17 +3,20 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AK Racing - GT Sprint Edition</title>
+  <title>Apex Moto - Pro Physics Sim</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
-    body { margin: 0; overflow: hidden; background: #f0f4f8; color: #1a202c; font-family: 'Inter', sans-serif; }
+    body { margin: 0; overflow: hidden; background: #0a0a0c; color: #e2e8f0; font-family: 'Inter', sans-serif; }
     canvas { display: block; }
-    .glass-light {
-      background: rgba(255, 255, 255, 0.8);
-      backdrop-filter: blur(12px);
-      border: 1px solid rgba(255, 255, 255, 0.5);
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.05);
+    .glass-dark {
+      background: rgba(15, 15, 20, 0.85);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    }
+    .accent-glow {
+      box-shadow: 0 0 20px rgba(59, 130, 246, 0.5);
     }
   </style>
 <script type="importmap">

@@ -1,24 +1,20 @@
 import React, { useState, useCallback } from 'react';
 import Simulation from './components/Simulation';
-import { PhysicsConfig, TelemetryData, TaskType } from './types';
+import { PhysicsConfig, TelemetryData } from './types';
 import { GoogleGenAI, Type } from '@google/genai';
 
 const DEFAULT_CONFIG: PhysicsConfig = {
-  maxSpeed: 160, 
-  acceleration: 55, 
-  engineBraking: 5,
-  manualBraking: 90,
-  steeringSensitivity: 1.1, 
-  rollFactor: 0.08,
-  pitchFactor: 0.15,
-  angularDamping: 10.0,
+  maxSpeed: 180, 
+  acceleration: 65, 
+  engineBraking: 8,
+  manualBraking: 110,
+  steeringSensitivity: 1.4, 
+  rollFactor: 0.12,
+  pitchFactor: 0.2,
+  angularDamping: 12.0,
   tractionAsphalt: 1.0,
-  suspensionStiffness: 80.0,
-  suspensionDamping: 20.0
-};
-
-const getTaskDescription = (type: string, level: number) => {
-  return `Circuit Stage ${level}: High Speed Sprint`;
+  suspensionStiffness: 90.0,
+  suspensionDamping: 25.0
 };
 
 const App: React.FC = () => {
@@ -38,7 +34,7 @@ const App: React.FC = () => {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
       const response = await ai.models.generateContent({
         model: 'gemini-3-pro-preview',
-        contents: `Expert racing car engineer. Tune the GT car for: "${aiPrompt}". Current level: ${telemetry?.level || 1}. Current config: ${JSON.stringify(config)}`,
+        contents: `Professional race bike engineer. Tuning a 1000cc superbike. Goal: "${aiPrompt}". Current settings: ${JSON.stringify(config)}`,
         config: {
           responseMimeType: 'application/json',
           responseSchema: {
@@ -61,92 +57,77 @@ const App: React.FC = () => {
       });
       if (response.text) setConfig(JSON.parse(response.text.trim()));
       setAiPrompt('');
-    } catch (e) { console.error(e); } finally { setIsTuning(false); }
+    } catch (e) {
+      console.error("Tuning error:", e);
+    } finally {
+      setIsTuning(false);
+    }
   };
 
   return (
-    <div className="relative w-full h-screen overflow-hidden text-slate-900 font-sans bg-[#f0f4f8]">
+    <div className="relative w-full h-screen overflow-hidden text-slate-100 bg-[#050507]">
       <Simulation config={config} onTelemetry={handleTelemetry} />
 
-      <div className="absolute top-8 left-1/2 -translate-x-1/2 w-[450px] pointer-events-none">
-        <div className="glass-light p-5 rounded-[2rem] border-b-8 border-blue-600 shadow-2xl">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[11px] font-black uppercase tracking-[0.4em] text-blue-700">GT World Series</span>
-            <span className="text-[11px] font-mono px-3 py-1 rounded-full bg-blue-600 text-white shadow-inner">STAGE {telemetry?.level || 1}</span>
+      {/* Main HUD */}
+      <div className="absolute bottom-10 left-10 pointer-events-none flex flex-col gap-4">
+        <div className="glass-dark p-8 rounded-[2rem] w-80 border-l-4 border-blue-500 shadow-2xl">
+          <div className="flex justify-between items-center mb-1">
+            <span className="text-[10px] uppercase tracking-widest font-bold text-slate-500">Velocity</span>
+            <span className="text-blue-400 font-bold italic tracking-tighter">GEAR {telemetry?.gear || 1}</span>
           </div>
-          <h3 className="text-2xl font-black tracking-tighter uppercase italic leading-none mb-3">
-            {getTaskDescription(telemetry?.currentTask || '', telemetry?.level || 1)}
-          </h3>
-          <div className="h-3 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
-            <div 
-              className="h-full bg-gradient-to-r from-blue-500 via-cyan-400 to-blue-700 transition-all duration-300 shadow-[0_0_15px_rgba(59,130,246,0.5)]" 
-              style={{ width: `${(telemetry && telemetry.taskTotal && telemetry.taskTotal > 0) ? (telemetry.taskProgress || 0) / telemetry.taskTotal * 100 : 0}%` }}
-            />
-          </div>
-        </div>
-      </div>
-
-      <div className="absolute bottom-12 left-12 flex flex-col gap-4 pointer-events-none">
-        <div className="glass-light p-10 rounded-[3rem] w-80 border-l-[12px] border-blue-700 shadow-2xl">
-          <div className="flex justify-between items-end mb-1">
-             <h2 className="text-[12px] uppercase tracking-[0.2em] font-black text-slate-400">Velocity</h2>
-             <span className="text-xl font-black text-blue-800 italic">GEAR {telemetry?.gear ?? 1}</span>
-          </div>
-          <div className="flex items-baseline gap-2 mb-8">
-            <span className="text-9xl font-black tracking-tighter text-slate-900 drop-shadow-sm">
-              {telemetry?.speed ?? 0}
-            </span>
-            <span className="text-2xl font-black italic text-blue-800 uppercase">km/h</span>
+          <div className="flex items-baseline gap-2 mb-4">
+            <h1 className="text-7xl font-black italic tracking-tighter text-white">
+              {telemetry?.speed || 0}
+            </h1>
+            <span className="text-lg font-bold text-slate-400 uppercase">km/h</span>
           </div>
           
-          <div className="grid grid-cols-2 gap-8 pt-6 border-t-2 border-slate-100">
-            <div className="flex flex-col">
-              <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Load G</span>
-              <span className="text-3xl font-black text-slate-800 tracking-tighter">{telemetry?.bodyRoll ?? 0}°</span>
+          <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/10">
+            <div>
+              <p className="text-[9px] uppercase font-bold text-slate-500">Lean Angle</p>
+              <p className="text-2xl font-black text-blue-400">{telemetry?.bodyRoll || 0}°</p>
             </div>
-            <div className="flex flex-col text-right">
-              <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest">RPM</span>
-              <span className="text-3xl font-black text-red-600 tracking-tighter">{telemetry?.rpm ?? 0}</span>
+            <div className="text-right">
+              <p className="text-[9px] uppercase font-bold text-slate-500">RPM</p>
+              <p className="text-2xl font-black text-red-500">{telemetry?.rpm || 0}</p>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="absolute top-8 right-8 w-80 glass-light p-7 rounded-[2.5rem] pointer-events-auto border-r-4 border-blue-300">
-        <div className="flex items-center gap-4 mb-5">
-          <div className="w-14 h-14 bg-blue-950 rounded-2xl flex items-center justify-center shadow-xl rotate-3">
-            <i className="fas fa-microchip text-blue-400 text-xl"></i>
+      {/* AI Tuning Panel */}
+      <div className="absolute top-10 right-10 w-72 glass-dark p-6 rounded-[2rem] border-t-2 border-blue-500/50">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center accent-glow">
+            <i className="fas fa-microchip text-white text-lg"></i>
           </div>
           <div>
-            <h3 className="font-black text-sm uppercase tracking-tight text-slate-900">Race Engineer AI</h3>
-            <p className="text-[10px] text-slate-500 font-bold">Dynamic Calibration</p>
+            <h3 className="text-xs font-black uppercase tracking-tight">MotoEngineer AI</h3>
+            <p className="text-[9px] text-slate-500 font-medium">Neural Calibration Active</p>
           </div>
         </div>
+        
         <textarea 
-          className="w-full bg-white/50 backdrop-blur-sm border-2 border-slate-100 rounded-[1.5rem] p-5 text-sm focus:outline-none focus:ring-4 focus:ring-blue-200 h-32 mb-5 shadow-inner font-medium"
-          placeholder="e.g. Reduce high-speed understeer..."
+          className="w-full bg-black/40 border border-white/5 rounded-xl p-3 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/50 h-24 mb-4 resize-none transition-all"
+          placeholder="E.g. 'Make it more stable at high speeds' or 'Improve flick-ability'..."
           value={aiPrompt}
           onChange={(e) => setAiPrompt(e.target.value)}
         />
+        
         <button 
           onClick={handleAiTune}
           disabled={isTuning || !aiPrompt.trim()}
-          className="w-full py-5 bg-blue-950 hover:bg-black text-white rounded-2xl text-[11px] font-black uppercase tracking-[0.3em] transition-all shadow-xl active:scale-95 group"
+          className="w-full py-3 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg active:scale-95"
         >
-          {isTuning ? (
-            <span className="flex items-center justify-center gap-2">
-              <i className="fas fa-sync animate-spin"></i> Calculating Tuning...
-            </span>
-          ) : (
-            "Update Vehicle Config"
-          )}
+          {isTuning ? "Recalibrating..." : "Apply AI Tuning"}
         </button>
       </div>
 
-      <div className="absolute bottom-8 right-8 glass-light px-8 py-4 rounded-full opacity-90 border-2 border-slate-100 shadow-lg">
-        <span className="text-[12px] font-black uppercase tracking-widest text-blue-900 flex items-center gap-3">
-          <i className="fas fa-keyboard text-blue-500"></i> WASD • Manual Steering Required in Turns
-        </span>
+      {/* Controls */}
+      <div className="absolute bottom-10 right-10 flex flex-col items-end gap-2">
+        <div className="glass-dark px-6 py-3 rounded-full border border-white/5 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+          WASD / Arrows to Drive • Bike leans based on speed
+        </div>
       </div>
     </div>
   );
