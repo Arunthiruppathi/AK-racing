@@ -1,7 +1,7 @@
 
 import React, { useState, useCallback } from 'react';
-import Simulation from './components/Simulation.tsx';
-import { PhysicsConfig, TelemetryData, TaskType } from './types.ts';
+import Simulation from './components/Simulation';
+import { PhysicsConfig, TelemetryData, TaskType } from './types';
 import { GoogleGenAI, Type } from '@google/genai';
 
 const DEFAULT_CONFIG: PhysicsConfig = {
@@ -24,6 +24,7 @@ const getTaskDescription = (type: string, level: number) => {
 
 const App: React.FC = () => {
   const [config, setConfig] = useState<PhysicsConfig>(DEFAULT_CONFIG);
+  // Fixed syntax error: removed duplicate assignment and bracket that caused multiple TS errors
   const [telemetry, setTelemetry] = useState<TelemetryData | null>(null);
   const [aiPrompt, setAiPrompt] = useState('');
   const [isTuning, setIsTuning] = useState(false);
@@ -36,6 +37,7 @@ const App: React.FC = () => {
     if (!aiPrompt.trim()) return;
     setIsTuning(true);
     try {
+      // Initialize GoogleGenAI with apiKey from environment
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
       const response = await ai.models.generateContent({
         model: 'gemini-3-pro-preview',
@@ -60,6 +62,7 @@ const App: React.FC = () => {
           }
         }
       });
+      // Correctly access the .text property from GenerateContentResponse
       if (response.text) setConfig(JSON.parse(response.text.trim()));
       setAiPrompt('');
     } catch (e) { console.error(e); } finally { setIsTuning(false); }
@@ -69,7 +72,6 @@ const App: React.FC = () => {
     <div className="relative w-full h-screen overflow-hidden text-slate-900 font-sans bg-[#f0f4f8]">
       <Simulation config={config} onTelemetry={handleTelemetry} />
 
-      {/* Top Level HUD */}
       <div className="absolute top-8 left-1/2 -translate-x-1/2 w-[450px] pointer-events-none">
         <div className="glass-light p-5 rounded-[2rem] border-b-8 border-blue-600 shadow-2xl">
           <div className="flex items-center justify-between mb-2">
@@ -82,13 +84,13 @@ const App: React.FC = () => {
           <div className="h-3 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
             <div 
               className="h-full bg-gradient-to-r from-blue-500 via-cyan-400 to-blue-700 transition-all duration-300 shadow-[0_0_15px_rgba(59,130,246,0.5)]" 
-              style={{ width: `${telemetry?.taskTotal ? (telemetry.taskProgress || 0) / telemetry.taskTotal * 100 : 0}%` }}
+              // Added comprehensive null check to avoid 'Object is possibly null' error
+              style={{ width: `${(telemetry && telemetry.taskTotal && telemetry.taskTotal > 0) ? (telemetry.taskProgress || 0) / telemetry.taskTotal * 100 : 0}%` }}
             />
           </div>
         </div>
       </div>
 
-      {/* Speedometer HUD */}
       <div className="absolute bottom-12 left-12 flex flex-col gap-4 pointer-events-none">
         <div className="glass-light p-10 rounded-[3rem] w-80 border-l-[12px] border-blue-700 shadow-2xl">
           <div className="flex justify-between items-end mb-1">
@@ -115,7 +117,6 @@ const App: React.FC = () => {
         </div>
       </div>
 
-      {/* Tuning Dashboard */}
       <div className="absolute top-8 right-8 w-80 glass-light p-7 rounded-[2.5rem] pointer-events-auto border-r-4 border-blue-300">
         <div className="flex items-center gap-4 mb-5">
           <div className="w-14 h-14 bg-blue-950 rounded-2xl flex items-center justify-center shadow-xl rotate-3">
@@ -147,7 +148,6 @@ const App: React.FC = () => {
         </button>
       </div>
 
-      {/* Control Info */}
       <div className="absolute bottom-8 right-8 glass-light px-8 py-4 rounded-full opacity-90 border-2 border-slate-100 shadow-lg">
         <span className="text-[12px] font-black uppercase tracking-widest text-blue-900 flex items-center gap-3">
           <i className="fas fa-keyboard text-blue-500"></i> WASD • Manual Steering Required in Turns

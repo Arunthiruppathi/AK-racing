@@ -1,5 +1,5 @@
 {
-  "name": "AK Racing Physics Engine",
-  "description": "A high-fidelity motorcycle physics simulation featuring realistic steering, leaning, and ground traction mechanics, tuned via a Gemini-powered physics assistant.",
+  "name": "AK Racing GT Physics Engine",
+  "description": "A high-fidelity car racing physics simulation featuring realistic weight transfer, tire scrub, and aerodynamic downforce mechanics, tuned via a Gemini-powered race engineer.",
   "requestFramePermissions": []
 }
