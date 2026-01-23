@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback } from 'react';
 import Simulation from './components/Simulation';
 import { PhysicsConfig, TelemetryData, TaskType } from './types';
@@ -24,7 +23,6 @@ const getTaskDescription = (type: string, level: number) => {
 
 const App: React.FC = () => {
   const [config, setConfig] = useState<PhysicsConfig>(DEFAULT_CONFIG);
-  // Fixed syntax error: removed duplicate assignment and bracket that caused multiple TS errors
   const [telemetry, setTelemetry] = useState<TelemetryData | null>(null);
   const [aiPrompt, setAiPrompt] = useState('');
   const [isTuning, setIsTuning] = useState(false);
@@ -37,7 +35,6 @@ const App: React.FC = () => {
     if (!aiPrompt.trim()) return;
     setIsTuning(true);
     try {
-      // Initialize GoogleGenAI with apiKey from environment
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
       const response = await ai.models.generateContent({
         model: 'gemini-3-pro-preview',
@@ -62,7 +59,6 @@ const App: React.FC = () => {
           }
         }
       });
-      // Correctly access the .text property from GenerateContentResponse
       if (response.text) setConfig(JSON.parse(response.text.trim()));
       setAiPrompt('');
     } catch (e) { console.error(e); } finally { setIsTuning(false); }
@@ -84,7 +80,6 @@ const App: React.FC = () => {
           <div className="h-3 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
             <div 
               className="h-full bg-gradient-to-r from-blue-500 via-cyan-400 to-blue-700 transition-all duration-300 shadow-[0_0_15px_rgba(59,130,246,0.5)]" 
-              // Added comprehensive null check to avoid 'Object is possibly null' error
               style={{ width: `${(telemetry && telemetry.taskTotal && telemetry.taskTotal > 0) ? (telemetry.taskProgress || 0) / telemetry.taskTotal * 100 : 0}%` }}
             />
           </div>
